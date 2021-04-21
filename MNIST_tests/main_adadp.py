@@ -64,13 +64,13 @@ import gaussian_moments as gm
 import itertools
 from types import SimpleNamespace
 import px_expander
-
+from datasets import load_datasets
 
 
 
 
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-parser.add_argument('--batch_size', type=int, default=500, metavar='N',
+parser.add_argument('--batch_size', type=int, default=256, metavar='N',
                     help='input batch size for training')
 parser.add_argument('--noise_sigma', type=float, default=2.0, metavar='M',
                     help='noise_sigma')
@@ -91,7 +91,7 @@ print(torchvision.__version__)
 
 randomize_data = True
 batch_size = args.batch_size # Note: overwritten by BO if used, last batch is skipped if not full size
-batch_proc_size = 10 # needs to divide or => to batch size
+batch_proc_size = 1 # needs to divide or => to batch size
 
 n_hidden_layers = 1 # number of units/layer (same for all) is set in bo parameters
 latent_dim = 512 # Note: overwritten by BO if used
@@ -99,7 +99,8 @@ output_dim = 10
 log_interval = 6000//batch_size # Note: this is absolute interval, actual is this//batch_size
 
 
-
+dataset = 'Adult'
+data_loc = 'data'
 
 use_dp = True # dp vs non-dp model
 scale_grads = True
@@ -117,7 +118,6 @@ run_id = args.run_id
 
 np.random.seed(17*run_id+3)
 
-input_dim = (28,28)
 
 
 
@@ -131,18 +131,8 @@ else:
 
 data_dir = './data/'
 
-
-
-trainset = torchvision.datasets.MNIST('./data', train=True, download=True,
-                                      transform=transforms.Compose([
-                                        transforms.ToTensor(),
-                                        transforms.Normalize((0.1307,), (0.3081,))
-                                      ]))
-
-testset = torchvision.datasets.MNIST('./data', train=False, transform=transforms.Compose([
-  transforms.ToTensor(),
-  transforms.Normalize((0.1307,), (0.3081,))]))
-
+trainset, testset, output_dim = load_datasets(dataset, data_loc)
+input_dim = np.prod(trainset[0][0].shape)
 
 sampling_ratio = float(batch_size)/len(trainset)
 
@@ -184,7 +174,7 @@ class simpleExpandedDNN(nn.Module):
     self.batch_proc_size = batch_proc_size
     self.batch_size = batch_size
 
-    self.linears = nn.ModuleList([ linear.Linear(1*input_dim[0]*input_dim[1], latent_dim, bias=False, batch_size=batch_proc_size)])
+    self.linears = nn.ModuleList([ linear.Linear(input_dim, latent_dim, bias=False, batch_size=batch_proc_size)])
     if n_hidden_layers > 0:
       for k in range(n_hidden_layers):
         self.linears.append( linear.Linear(latent_dim, latent_dim,bias=False,batch_size=batch_proc_size) )
@@ -196,7 +186,7 @@ class simpleExpandedDNN(nn.Module):
 
   def forward(self, x):
 
-    x = torch.unsqueeze(x.view(-1, 1*input_dim[0]*input_dim[1]),1)
+    x = torch.unsqueeze(x.view(-1, input_dim),1)
 
     for k_linear in self.linears:
       x = self.relu(k_linear(x))
