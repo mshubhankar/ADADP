@@ -58,5 +58,5 @@ def linear(input, weight, bias=None, batch_size=None):
 
     # kts bias kun muu toimii
     if bias is not None:
-        output += bias
+        output += torch.unsqueeze(bias,1)
     return output

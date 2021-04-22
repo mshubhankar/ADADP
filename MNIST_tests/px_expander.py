@@ -36,8 +36,10 @@ def acc_scaled_grads(model, C, cum_grads, use_cuda=False):
   # do clipping and accumulate
   for p, key in zip( filter(lambda p: p.requires_grad, model.parameters()), cum_grads.keys() ):
     if p is not None:
-      cum_grads[key] += torch.sum( (p.grad/torch.clamp(g_norm.contiguous().view(-1,1,1)/C, min=1)), dim=0 )
-
+      if p.grad.dim() == 3:
+        cum_grads[key] += torch.sum( (p.grad/torch.clamp(g_norm.contiguous().view(-1,1,1)/C, min=1)), dim=0 )
+      if p.grad.dim() == 2:
+        cum_grads[key] += torch.sum( (p.grad/torch.clamp(g_norm.contiguous().view(-1,1)/C, min=1)), dim=0 )
 
 # add noise and replace model grads with cumulative grads
 def add_noise_with_cum_grads(model, C, sigma, cum_grads, use_cuda=False):
@@ -53,5 +55,10 @@ def add_noise_with_cum_grads(model, C, sigma, cum_grads, use_cuda=False):
         Variable( (sigma*C)*torch.normal(mean=torch.zeros_like(p.grad[0]).data, \
         std=1.0).expand(batch_proc_size,-1,-1) ) )/model.batch_size).cuda()
       else:
-        p.grad = (cum_grads[key].expand(batch_proc_size,-1,-1) + \
-        Variable( (sigma*C)*torch.normal(mean=torch.zeros_like(p.grad[0]).data,std=1.0).expand(batch_proc_size,-1,-1) ) )/model.batch_size
+        if cum_grads[key].dim() == 2:
+          p.grad = (cum_grads[key].expand(batch_proc_size,-1,-1) + \
+          Variable( (sigma*C)*torch.normal(mean=torch.zeros_like(p.grad[0]).data,std=1.0).expand(batch_proc_size,-1,-1) ) )/model.batch_size
+        elif cum_grads[key].dim() == 1:
+          p.grad = (cum_grads[key].expand(batch_proc_size,-1) + \
+          Variable( (sigma*C)*torch.normal(mean=torch.zeros_like(p.grad[0]).data,std=1.0).expand(batch_proc_size,-1) ) )/model.batch_size
+

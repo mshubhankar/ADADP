@@ -65,7 +65,7 @@ import itertools
 from types import SimpleNamespace
 import px_expander
 from datasets import load_datasets
-
+from models import get_model
 
 
 
@@ -91,17 +91,17 @@ print(torchvision.__version__)
 
 randomize_data = True
 batch_size = args.batch_size # Note: overwritten by BO if used, last batch is skipped if not full size
-batch_proc_size = 1 # needs to divide or => to batch size
+batch_proc_size = 10 # needs to divide or => to batch size
 
-n_hidden_layers = 1 # number of units/layer (same for all) is set in bo parameters
-latent_dim = 512 # Note: overwritten by BO if used
+
+
 output_dim = 10
 log_interval = 6000//batch_size # Note: this is absolute interval, actual is this//batch_size
 
 
 dataset = 'Adult'
 data_loc = 'data'
-
+model_name = 'TLNN'
 use_dp = True # dp vs non-dp model
 scale_grads = True
 grad_norm_max = 10
@@ -126,8 +126,10 @@ if torch.cuda.is_available() and torch.cuda.device_count() > 0:
   print('Using cuda')
   torch.cuda.manual_seed(11*run_id+19)
   use_cuda = True
+  device = 'cuda'
 else:
-  use_cuda=False
+  use_cuda = False
+  device = 'cpu'
 
 data_dir = './data/'
 
@@ -158,60 +160,24 @@ def update_privacy_pars(priv_pars):
   return priv_pars
 
 
-
-
-
-
-
-
-
-class simpleExpandedDNN(nn.Module):
-  def __init__(self, batch_size, batch_proc_size):
-    super(simpleExpandedDNN, self).__init__()
-    #self.lrelu = nn.LeakyReLU()
-    self.relu = nn.ReLU()
-
-    self.batch_proc_size = batch_proc_size
-    self.batch_size = batch_size
-
-    self.linears = nn.ModuleList([ linear.Linear(input_dim, latent_dim, bias=False, batch_size=batch_proc_size)])
-    if n_hidden_layers > 0:
-      for k in range(n_hidden_layers):
-        self.linears.append( linear.Linear(latent_dim, latent_dim,bias=False,batch_size=batch_proc_size) )
-    self.final_fc = linear.Linear(self.linears[-1].out_features, output_dim,bias=False, batch_size=batch_proc_size)
-    self.train_loader = torch.utils.data.DataLoader(trainset, batch_size=self.batch_size,
-                                                    shuffle=randomize_data, num_workers=4)
-    self.test_loader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
+model, loss_function = get_model(model_name, batch_size, batch_proc_size, input_dim, output_dim, device)
+model.train_loader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
                                                     shuffle=randomize_data, num_workers=4)
 
-  def forward(self, x):
-
-    x = torch.unsqueeze(x.view(-1, input_dim),1)
-
-    for k_linear in self.linears:
-      x = self.relu(k_linear(x))
-    x = self.final_fc(x)
-    return nn.functional.log_softmax(x.view(-1,output_dim),dim=1)
-
-
-
-
-model = simpleExpandedDNN(batch_size=batch_size, batch_proc_size=batch_proc_size)
+model.test_loader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
+                                                        shuffle=randomize_data, num_workers=4)
 
 print('model: {}'.format(model))
 
 
 for p in model.parameters():
   if p is not None:
-    p.data.copy_( p[0].data.clone().repeat(batch_proc_size,1,1) )
-
+    if p.data.dim() == 3:
+      p.data.copy_( p.data[0].clone().repeat(batch_proc_size,1,1))
+    elif p.data.dim() == 2:
+      p.data.copy_( p.data[0].clone().repeat(batch_proc_size,1))
 if use_cuda:
   model = model.cuda()
-
-loss_function = nn.NLLLoss(size_average=False)
-
-
-
 
 #optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=l_rate, momentum=0)
 
@@ -333,7 +299,7 @@ def test(model, epoch):
 
       output = model(data_proc)
 
-      test_loss += F.nll_loss(output, target_proc, size_average=False).item()
+      test_loss += loss_function(output, target_proc).item()
 
       pred = output.data.max(1, keepdim=True)[1]
 
