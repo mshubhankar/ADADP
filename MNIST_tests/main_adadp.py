@@ -33,7 +33,7 @@ on a code by Mikko Heikkilä (@mixheikk).
 
 
 
-
+import os
 import copy
 import datetime
 import numpy as np
@@ -66,7 +66,7 @@ from types import SimpleNamespace
 import px_expander
 from datasets import load_datasets
 from models import get_model
-
+from sampler import get_loader
 
 
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
@@ -96,12 +96,11 @@ batch_proc_size = 10 # needs to divide or => to batch size
 
 
 output_dim = 10
-log_interval = 6000//batch_size # Note: this is absolute interval, actual is this//batch_size
-
 
 dataset = 'Adult'
 data_loc = 'data'
-model_name = 'TLNN'
+model_name = 'LR'
+
 use_dp = True # dp vs non-dp model
 scale_grads = True
 grad_norm_max = 10
@@ -114,10 +113,14 @@ n_epochs = args.n_epochs
 l_rate = 0.01
 
 run_id = args.run_id
-
+iterations = 2500
+stage_length = 100
 
 np.random.seed(17*run_id+3)
 
+curr_dir = dataset+'_'+model_name+'/'
+if not os.path.exists(curr_dir):
+  os.mkdir(curr_dir)
 
 
 
@@ -161,8 +164,8 @@ def update_privacy_pars(priv_pars):
 
 
 model, loss_function = get_model(model_name, batch_size, batch_proc_size, input_dim, output_dim, device)
-model.train_loader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
-                                                    shuffle=randomize_data, num_workers=4)
+# model.train_loader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
+#                                                     shuffle=randomize_data, num_workers=4)
 
 model.test_loader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
                                                         shuffle=randomize_data, num_workers=4)
@@ -194,18 +197,12 @@ else:
 
 
 
-def train(epoch, model, T):
+def train(model, T):
 
+  model.train_loader = get_loader(batch_size, iterations=stage_length)
   model.train()
-  ii=0
 
-
-  print('run_id: ' +str(run_id))
-
-  for batch_idx, (data, target) in enumerate(model.train_loader):
-    if data.shape[0] != batch_size:
-      print('skipped last batch')
-      continue
+  for batch_idx, (data, target) in enumerate(model.train_loader(trainset)):
 
     optimizer.zero_grad()
     loss_tot = 0
@@ -229,8 +226,11 @@ def train(epoch, model, T):
       data_proc = data[i_batch*batch_proc_size:(i_batch+1)*batch_proc_size,:]
       target_proc = target[i_batch*batch_proc_size:(i_batch+1)*batch_proc_size]
 
+      if data_proc.shape[0] != batch_proc_size:
+        print('skipped last microbatch')
+        continue
+      
       output = model(data_proc)
-
       loss = loss_function(output,target_proc)
       loss_tot += loss.data
 
@@ -258,13 +258,7 @@ def train(epoch, model, T):
 
     T += 1
 
-    if batch_idx % log_interval == 0:
-      print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-        epoch, batch_idx * len(data), len(model.train_loader.dataset),
-        100. * batch_idx / len(model.train_loader), loss_tot.item()/batch_size))
-
-
-  return T
+  return T, loss_tot.item()/batch_size
 
 
 
@@ -273,7 +267,7 @@ def train(epoch, model, T):
 
 
 
-def test(model, epoch):
+def test(model):
 
   model.eval()
 
@@ -281,6 +275,7 @@ def test(model, epoch):
   correct = 0
 
   for data, target in model.test_loader:
+
     if data.shape[0] != model.batch_size:
       print('skipped last batch')
       continue
@@ -325,22 +320,30 @@ priv_pars['T'], priv_pars['eps'],priv_pars['delta'], priv_pars['sigma'], priv_pa
 
 
 
-accs = []
+# accs = []
 epsilons = []
+log_file = open(curr_dir+'log'+'.txt', 'w')
+for stage in range(iterations//stage_length):
 
-for epoch in range(1,n_epochs+1):
 
-  loss, acc = test(model, epoch)
+  # accs.append(acc)
 
-  accs.append(acc)
+  priv_pars['T'], train_loss = train(model, priv_pars['T'])
 
+
+
+  loss, acc = test(model)
+  print('[Stage %d/%d] [Training Loss: %f] [Testing Loss %f] [Testing Accuracy %f]' %
+                 (stage+1, iterations/stage_length, train_loss, loss, acc))
+  print('[Stage %d/%d] [Training Loss: %f] [Testing Loss %f] [Testing Accuracy %f]' %
+                 (stage+1, iterations/stage_length, train_loss, loss, acc), file=log_file)
+  
   print('Current privacy pars: {}'.format(priv_pars))
-  priv_pars['T'] = train(epoch, model, priv_pars['T'])
-
   if use_dp and scale_grads and noise_sigma > 0:
     update_privacy_pars(priv_pars)
 
   epsilons.append(priv_pars['eps'])
 
+
 # Save the test accuracies
-np.save('accs_' +str(run_id) + '_' + str(noise_sigma) + '_' + str(batch_size),accs)
+# np.save('accs_' +str(run_id) + '_' + str(noise_sigma) + '_' + str(batch_size),accs)
