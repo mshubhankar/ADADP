@@ -81,9 +81,9 @@ batch_size = 256 # Note: overwritten by BO if used, last batch is skipped if not
 batch_proc_size = 10 # needs to divide or => to batch size
 
 
-dataset = 'MNIST'
+dataset = 'Adult'
 # data_loc = 'data'
-model_name = 'TLNN'
+model_name = 'LR'
 
 use_dp = True # dp vs non-dp model
 scale_grads = True
@@ -109,7 +109,7 @@ if not os.path.exists(main_dir):
 
 for grad_norm_max in clips:
   
-  curr_dir = main_dir +'noise'+str(noise_sigma)+'_clip'+str(grad_norm_max)+'/'
+  curr_dir = main_dir +'noise_'+str(noise_sigma)+'_clip_'+str(grad_norm_max)+'/'
   if not os.path.exists(curr_dir):
     os.mkdir(curr_dir)
 
