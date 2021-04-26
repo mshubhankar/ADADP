@@ -81,9 +81,9 @@ batch_size = 256 # Note: overwritten by BO if used, last batch is skipped if not
 batch_proc_size = 10 # needs to divide or => to batch size
 
 
-dataset = 'Adult'
+dataset = 'Gisette'
 # data_loc = 'data'
-model_name = 'LR'
+model_name = 'TLNN'
 
 use_dp = True # dp vs non-dp model
 scale_grads = True
@@ -93,12 +93,16 @@ grad_norm_max = 10
 noise_sigma = 4
 delta = 1e-5
 
-tol = 1.0
+if model_name == 'LR':
+  tol = 0.1
+else:
+  tol = 1.0
+
 
 l_rate = 0.01
 
 run_id = 1
-iterations = 10000
+iterations = 5000
 stage_length = 100
 repeats = 3
 np.random.seed(17*run_id+3)
