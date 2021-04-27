@@ -70,11 +70,11 @@ import px_expander
 
 
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-parser.add_argument('--batch_size', type=int, default=500, metavar='N',
+parser.add_argument('--batch_size', type=int, default=200, metavar='N',
                     help='input batch size for training')
 parser.add_argument('--noise_sigma', type=float, default=2.0, metavar='M',
                     help='noise_sigma')
-parser.add_argument('--n_epochs', type=int, default=10, metavar='N',
+parser.add_argument('--n_epochs', type=int, default=100, metavar='N',
                     help='n_epochs')
 parser.add_argument('--run_id', type=int, default=1, metavar='N',
                     help='run_id')
@@ -93,8 +93,8 @@ randomize_data = True
 batch_size = args.batch_size # Note: overwritten by BO if used, last batch is skipped if not full size
 batch_proc_size = 10 # needs to divide or => to batch size
 
-n_hidden_layers = 1 # number of units/layer (same for all) is set in bo parameters
-latent_dim = 512 # Note: overwritten by BO if used
+n_hidden_layers = 2 # number of units/layer (same for all) is set in bo parameters
+latent_dim = 256 # Note: overwritten by BO if used
 output_dim = 10
 log_interval = 6000//batch_size # Note: this is absolute interval, actual is this//batch_size
 
@@ -105,12 +105,12 @@ use_dp = True # dp vs non-dp model
 scale_grads = True
 grad_norm_max = 10
 noise_sigma = args.noise_sigma
-delta = 1e-5
+delta = 1e-6
 
 tol = args.tol
 
 n_epochs = args.n_epochs
-l_rate = 0.01
+l_rate = 0.1
 
 run_id = args.run_id
 

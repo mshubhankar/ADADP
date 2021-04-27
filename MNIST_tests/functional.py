@@ -10,7 +10,7 @@ import sys
 import torch
 #from torch._C import _infer_size, _add_docstr
 #from . import _functions
-from torch.nn import _functions
+# from torch.nn import _functions
 #from .modules import utils
 from torch.nn.modules import utils
 #from ._functions.linear import Bilinear
