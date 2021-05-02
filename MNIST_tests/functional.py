@@ -24,6 +24,14 @@ from torch.nn.modules import utils
 from torch.autograd import Variable
 #from .modules.utils import _single, _pair, _triple
 #from torch.nn.modules.utils import _single, _pair, _triple
+from numpy.random.mtrand import _rand as global_randstate
+# Deterministic output
+global_randstate.seed(42)
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
 
 
 '''

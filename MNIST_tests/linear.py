@@ -16,6 +16,14 @@ import torch
 from torch.nn.parameter import Parameter
 import functional as F
 from torch.nn.modules import Module
+from numpy.random.mtrand import _rand as global_randstate
+# Deterministic output
+global_randstate.seed(42)
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
 
 
 class Linear(Module):

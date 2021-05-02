@@ -14,6 +14,15 @@ import torch
 from torch.autograd import Variable
 
 import sys
+from numpy.random.mtrand import _rand as global_randstate
+# Deterministic output
+global_randstate.seed(42)
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
+
 
 
 # clip and accumulate clipped gradients
@@ -53,5 +62,8 @@ def add_noise_with_cum_grads(model, C, sigma, cum_grads, use_cuda=False):
         Variable( (sigma*C)*torch.normal(mean=torch.zeros_like(p.grad[0]).data, \
         std=1.0).expand(batch_proc_size,-1,-1) ) )/model.batch_size).cuda()
       else:
+        import pdb
+        pdb.set_trace()
         p.grad = (cum_grads[key].expand(batch_proc_size,-1,-1) + \
         Variable( (sigma*C)*torch.normal(mean=torch.zeros_like(p.grad[0]).data,std=1.0).expand(batch_proc_size,-1,-1) ) )/model.batch_size
+        

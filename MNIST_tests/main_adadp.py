@@ -64,6 +64,13 @@ import gaussian_moments as gm
 import itertools
 from types import SimpleNamespace
 import px_expander
+from numpy.random.mtrand import _rand as global_randstate
+# Deterministic output
+global_randstate.seed(42)
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 
 
@@ -91,7 +98,7 @@ print(torchvision.__version__)
 
 randomize_data = True
 batch_size = args.batch_size # Note: overwritten by BO if used, last batch is skipped if not full size
-batch_proc_size = 10 # needs to divide or => to batch size
+batch_proc_size = 5 # needs to divide or => to batch size
 
 n_hidden_layers = 2 # number of units/layer (same for all) is set in bo parameters
 latent_dim = 256 # Note: overwritten by BO if used
@@ -171,11 +178,8 @@ def update_privacy_pars(priv_pars):
 
 
 
-
-
-
-
 class simpleExpandedDNN(nn.Module):
+
   def __init__(self, batch_size, batch_proc_size):
     super(simpleExpandedDNN, self).__init__()
     #self.lrelu = nn.LeakyReLU()
@@ -195,15 +199,12 @@ class simpleExpandedDNN(nn.Module):
                                                     shuffle=randomize_data, num_workers=4)
 
   def forward(self, x):
-
     x = torch.unsqueeze(x.view(-1, 1*input_dim[0]*input_dim[1]),1)
 
     for k_linear in self.linears:
       x = self.relu(k_linear(x))
     x = self.final_fc(x)
     return nn.functional.log_softmax(x.view(-1,output_dim),dim=1)
-
-
 
 
 model = simpleExpandedDNN(batch_size=batch_size, batch_proc_size=batch_proc_size)
@@ -371,11 +372,11 @@ priv_pars['T'], priv_pars['eps'],priv_pars['delta'], priv_pars['sigma'], priv_pa
 
 accs = []
 epsilons = []
-
+file = open(f'output_{noise_sigma}.txt', 'w')
 for epoch in range(1,n_epochs+1):
 
   loss, acc = test(model, epoch)
-
+  print(f"{priv_pars['eps']},{acc}", file = file)
   accs.append(acc)
 
   print('Current privacy pars: {}'.format(priv_pars))
